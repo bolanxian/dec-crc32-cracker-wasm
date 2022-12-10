@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>CRC32反查</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.runtime.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/view-design@4.7.0/dist/iview.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/view-design@4.7.0/dist/styles/iview.css">
+
+  <script src="./dec-crc32-cracker.js"></script>
+  <script src="./dec-crc32-cracker-wasm.js"></script>
+  <style>
+    .container {
+      margin: 0 auto;
+    }
+
+    @media(min-width:576px) {
+      .container {
+        max-width: 540px;
+      }
+    }
+
+    @media(min-width:768px) {
+      .container {
+        max-width: 720px;
+      }
+    }
+
+    @media(min-width:992px) {
+      .container {
+        max-width: 960px;
+      }
+    }
+
+    @media(min-width:1200px) {
+      .container {
+        max-width: 1140px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"> </div>
+  <script>
+    ; (function (root, factory) {
+      factory(root.Vue, root.iview, root.decCrc32Cracker, root.decCrc32CrackerWasm)
+    })(this, function (Vue, iview, decCrc32Cracker, decCrc32CrackerWasm) {
+      "use strict";
+      const { Row, Col, Input, Button, Switch } = iview
+      const delay = t => new Promise(ok => { setTimeout(ok, t) })
+      const createProcesser = (name, from, to, cb) => {
+        return async function () {
+          if (this.progress) { return }
+          try {
+            if (!this[from]) {
+              return iview.Message.warning('你还没有输入！')
+            }
+            this.progress = name
+            this[to] = ''
+            await delay(50)
+            const results = []
+            const start = Date.now()
+            let data; for (data of this[from].split('\n')) {
+              if (data = data.trim()) {
+                data = cb.call(this, data, arguments)
+                if (Array.isArray(data)) {
+                  data = data.join('\n') + '\n'
+                }
+              }
+              results.push(data)
+              this[to] = results.join('\n')
+            }
+            const time = ((Date.now() - start) / 1000)
+            if (time >= 0.01) {
+              iview.Message.success(`用时${time.toFixed(2)}秒`)
+            }
+            data = this[to]
+            this[to] += '\n'
+            this[to] = data.trim()
+          } catch (e) {
+            iview.Message.error('发生错误')
+            throw e
+          } finally {
+            this.progress = null
+          }
+        }
+      }
+      const vm = new Vue({
+        data: {
+          wasmState: 'loading',
+          progress: null
+        },
+        async created() {
+          try {
+            decCrc32Cracker.init()
+            await decCrc32CrackerWasm.init()
+            this.wasmState = 'success'
+          } catch (e) {
+            this.wasmState = 'error'
+            throw e
+          }
+        },
+        methods: {
+          crackWasm: createProcesser('crackWasm', 'data', 'encrypted', data => decCrc32CrackerWasm.filter(data)),
+          crack: createProcesser('crack', 'data', 'encrypted', data => decCrc32Cracker.filter(data)),
+          crc32: createProcesser('crc32', 'encrypted', 'decrypted', id => {
+            id = unescape(encodeURIComponent(id))
+            const crc = ~decCrc32Cracker.crc32(id) >>> 0
+            return crc.toString(16).padStart(8, '0')
+          }),
+          readme() {
+            const vm = this
+            const { innerHTML } = document.querySelector('script[type="text/readme"]')
+            iview.Modal.info({
+              title: '关于',
+              width: 600,
+              render() {
+                return vm._c('div', { domProps: { innerHTML } })
+              }
+            })
+          }
+        },
+        render() {
+          const vm = this, { _c, _v, _e, progress } = this
+          const disabled = !!progress
+          return _c('div', { staticClass: "container", attrs: { id: "app" } }, [
+            _c('div', {
+              staticStyle: { margin: '60px auto 30px auto', 'text-align': 'center' }
+            }, [
+              _c('h2', [_v('CRC32反查')]),
+              _c('h5', [_v('(0-1999999999)'), _e('(0-1999999999)')])
+            ]),
+            _c(Row, { attrs: { gutter: 5 } }, [
+              _c(Col, {
+                attrs: { span: 5 },
+                staticStyle: { 'text-align': 'right', 'line-height': '30px' }
+              }, [_v('输入CRC32：')]),
+              _c(Col, { attrs: { span: 14 } }, [
+                _c(Input, {
+                  ref: 'data',
+                  attrs: { type: 'textarea', autosize: true, disabled }
+                })
+              ])
+            ]),
+            _c(Row, { attrs: { gutter: 5 } }, [
+              _c(Col, { attrs: { offset: 5, span: 14 } }, [
+                !1 ? _c(Button, {
+                  staticStyle: { margin: '16px 16px 16px 0' },
+                  attrs: {
+                    disabled: disabled || vm.workerState !== 'success',
+                    loading: progress === 'crackWorker' || vm.workerState === 'loading',
+                  },
+                  on: { click: vm.crackWorker }
+                }, [_v("反查(Worker)")]) : _e(''),
+                _c(Button, {
+                  staticStyle: { margin: '16px 16px 16px 0' },
+                  attrs: {
+                    disabled: disabled || vm.wasmState !== 'success',
+                    loading: progress === 'crackWasm' || vm.wasmState === 'loading',
+                  },
+                  on: { click: vm.crackWasm }
+                }, [_v("反查(Wasm)")]),
+                _c(Button, {
+                  staticStyle: { margin: '16px 16px 16px 0' },
+                  attrs: { disabled, loading: progress === 'crack' },
+                  on: { click: vm.crack }
+                }, [_v("反查")])
+              ])
+            ]),
+            _c(Row, { attrs: { gutter: 5 } }, [
+              _c(Col, {
+                attrs: { span: 5 },
+                staticStyle: { 'text-align': 'right', 'line-height': '30px' }
+              }, [_v('反查结果：')]),
+              _c(Col, { attrs: { span: 14 } }, [
+                _c(Input, {
+                  ref: 'encrypted',
+                  attrs: { type: 'textarea', autosize: true, disabled }
+                })
+              ])
+            ]),
+            _c(Row, { attrs: { gutter: 5 } }, [
+              _c(Col, { attrs: { offset: 5, span: 14 } }, [
+                _c(Button, {
+                  staticStyle: { margin: '16px 16px 16px 0' },
+                  attrs: { disabled, loading: progress === 'crc32' },
+                  on: { click: vm.crc32 }
+                }, [_v("CRC32")])
+              ])
+            ]),
+            _c(Row, { attrs: { gutter: 5 } }, [
+              _c(Col, {
+                attrs: { span: 5 },
+                staticStyle: { 'text-align': 'right', 'line-height': '30px' }
+              }, [_v('输出CRC32：')]),
+              _c(Col, { attrs: { span: 14 } }, [
+                _c(Input, {
+                  ref: 'decrypted',
+                  attrs: { type: 'textarea', autosize: true, disabled }
+                })
+              ])
+            ]),
+            !1 ? _c(Row, { attrs: { gutter: 5 } }, [
+              _c(Col, { attrs: { offset: 5, span: 14 } }, [
+                _c(Button, {
+                  staticStyle: { margin: '16px 16px 16px 0' },
+                  on: { click: vm.readme }
+                }, [_v("关于")])
+              ])
+            ]) : _e()
+          ])
+        }
+      })
+      const def = (vm, key) => {
+        Object.defineProperty(vm, key, {
+          enumerable: true,
+          configurable: true,
+          get() { return this.$refs[key].currentValue },
+          set(value) { this.$refs[key].setCurrentValue(value) }
+        })
+      }
+      def(vm, 'data')
+      def(vm, 'encrypted')
+      def(vm, 'decrypted')
+      vm.$mount('#app')
+      Object.assign(window, { vm })
+    })
+  </script>
+</body>
+
+</html>
