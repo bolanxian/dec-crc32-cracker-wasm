@@ -213,7 +213,7 @@
           ])
         }
       })
-      var def = (vm, key) => {
+      const def = (vm, key) => {
         Object.defineProperty(vm, key, {
           enumerable: true,
           configurable: true,
@@ -224,15 +224,8 @@
       def(vm, 'data')
       def(vm, 'encrypted')
       def(vm, 'decrypted')
-      try {
-        vm.$mount('#app')
-        Object.assign(window, { Vue, iview, vm, decCrc32Cracker, decCrc32CrackerWasm })
-      } catch (e) {
-        utils.cdn.error()
-        var el = document.getElementById('nuxt-loading')
-        if (el) { el.classList.add('error') }
-        throw e
-      }
+      vm.$mount('#app')
+      Object.assign(window, { vm })
     })
   </script>
 </body>
