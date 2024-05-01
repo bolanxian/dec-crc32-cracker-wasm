@@ -1,11 +1,19 @@
+const zeroes = @import("std").mem.zeroes;
 const cracker = @import("./dec-crc32-cracker.zig");
 const init = cracker.init;
 const getIndexes = cracker.getIndexes;
 const itoa = cracker.itoa;
-const str = &cracker.str;
 const crc32_dec = cracker.crc32_dec;
 const findIndex = cracker.findIndex;
 const checkIndex = cracker.checkIndex;
+
+pub fn concat(i: i32, j: i32) i64 {
+    var ret: i64 = @as(i64, i) * 1000;
+    ret += (j >> 8 & 0xF) * 100;
+    ret += (j >> 4 & 0xF) * 10;
+    ret += j & 0xF;
+    return ret;
+}
 
 test "!" {
     const std = @import("std");
@@ -25,11 +33,7 @@ test "!" {
             break;
         }
         const last = checkIndex(i, _indexes);
-        var num: i64 = @as(i64, i) * 1000;
-        num += (last >> 8 & 0xF) * 100;
-        num += (last >> 4 & 0xF) * 10;
-        num += last & 0xF;
-        try expect(switch (num) {
+        try expect(switch (concat(i, last)) {
             729601752, 1234567890 => true,
             else => false,
         });
@@ -68,13 +72,8 @@ pub fn main() !void {
                 break;
             }
             const last = checkIndex(i, _indexes);
-            const pre = str[0..itoa(@intCast(i), str)];
-            var suf = [3]u8{ 0, 0, 0 };
-            suf[0] = @intCast((last >> 8 & 0xF) + '0');
-            suf[1] = @intCast((last >> 4 & 0xF) + '0');
-            suf[2] = @intCast((last & 0xF) + '0');
 
-            std.debug.print("crc32(\"{s}{s}\") = {s}\n", .{ pre, suf, arg });
+            std.debug.print("crc32(\"{d}\") = {s}\n", .{ concat(i, last), arg });
         }
     }
 }
